@@ -6,5 +6,4 @@
   $XENSERVER "xe vm-destroy --force uuid=\$(cat ./VM)"
 
   $XENSERVER 'rm -rf /boot/guest'
-# rm -rf $TMP/mirage-skeleton/
 

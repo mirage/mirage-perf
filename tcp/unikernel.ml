@@ -12,9 +12,10 @@ let msg = "0000 0001 0002 0003 0004 0005 0006 0007 0008 0009 0010 0011 0012 0013
 let mlen = String.length msg
 
 let usage_msg = "enter iperf command:
-    1- target <server address> <server port>
-    2- stats
-    3- Reset\n"
+    1- target <server address> <server port> -- send traffic to target
+    2- start -- sends traffic from port 1 to port 2
+    2- stats -- reads statistics
+    3- Reset -- resets port counters \n"
 let usage_mlen = String.length usage_msg
 
 let iperf_rx_port = 5001
