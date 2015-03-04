@@ -21,7 +21,9 @@ let usage_mlen = String.length usage_msg
 let iperf_rx_port = 5001
 let cmd_port = 8080
 
-module Main (C:CONSOLE)(NCOM: NETWORK)(NLST: NETWORK)(COM:STACKV4)(LST:STACKV4) = struct
+module Main
+         (C:CONSOLE)(NCOM: NETWORK)(NLST: NETWORK)(COM:STACKV4)(LST:STACKV4) =
+struct
 
   module TCOM  = COM.TCPV4
   module TLST  = LST.TCPV4
@@ -34,9 +36,10 @@ module Main (C:CONSOLE)(NCOM: NETWORK)(NLST: NETWORK)(COM:STACKV4)(LST:STACKV4) 
     let usage_buf = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 usage_mlen in
     Cstruct.blit_from_string usage_msg 0 usage_buf 0 usage_mlen;
 
-    Lwt_list.iter_s (fun ip -> C.log_s console 
-      (sprintf "IP address: %s\n" 
-        (Ipaddr.V4.to_string ip))) (COM.IPV4.get_ip (COM.ipv4 com))
+    Lwt_list.iter_s (fun ip ->
+        C.log_s console
+          (sprintf "IP address: %s\n"
+             (Ipaddr.V4.to_string ip))) (COM.IPV4.get_ip (COM.ipv4 com))
     >>
     C.log_s console
       (green "ready to receive command connections on port %d" cmd_port)
@@ -44,113 +47,125 @@ module Main (C:CONSOLE)(NCOM: NETWORK)(NLST: NETWORK)(COM:STACKV4)(LST:STACKV4) 
     COM.listen_tcpv4 com cmd_port (
 
       let rec snd outfl n = match n with
-      | 0 -> C.log_s console (red "iperf client: done") >> TCOM.close outfl
-      | _ -> 
+        | 0 -> C.log_s console (red "iperf client: done") >> TCOM.close outfl
+        | _ ->
           TCOM.write outfl buf >>
           snd outfl (n - 1)
       in
 
       let sendth dst port =
-      COM.TCPV4.create_connection (COM.tcpv4 com) (dst, port) >>= function
-      | `Ok outfl -> C.log_s console (red "connected") >> snd outfl 200000
-      | `Error e -> C.log_s console (red "connect: error")
+        COM.TCPV4.create_connection (COM.tcpv4 com) (dst, port) >>= function
+        | `Ok outfl -> C.log_s console (red "connected") >> snd outfl 200000
+        | `Error e -> C.log_s console (red "connect: error")
       in
 
       let rec cmd_loop n f =
         TCOM.read f
         >>= function
         | `Ok b ->
-          let msg = (Cstruct.to_string 
+          let msg = (Cstruct.to_string
                        (Cstruct.sub b 0 ((Cstruct.len b) - 2))) in
-          let i = if String.contains msg ' ' then String.index msg ' ' else (String.length msg) in
+          let i =
+            String.(if contains msg ' ' then index msg ' ' else (length msg))
+          in
           let cmd = String.sub msg 0 i in
           (
-          match cmd with
-          | "target" ->
-            let msg_s = String.sub msg (i+1) ((String.length msg) - i-1) in
-            let i = String.index msg_s ' ' in
-            let d_ip_s = String.sub msg_s 0 i in
-            let d_prt_s = String.sub msg_s (i+1) ((String.length msg_s) - i-1) in
-            let dst = (Ipaddr.V4.of_string_exn d_ip_s) in
-            let dst_p = int_of_string d_prt_s in
-            
-            let _ = NCOM.reset_stats_counters ncom in
-            let _ = NLST.reset_stats_counters nlst in
-            
-            let _ = sendth dst dst_p in
-            C.log_s console
-              (yellow "attempting iperf connection to: %s:%s\n" 
-                d_ip_s d_prt_s
-              )
-            >>
-            cmd_loop (n + (Cstruct.len b)) f
+            match cmd with
+            | "target" ->
+              let msg_s = String.sub msg (i+1) ((String.length msg) - i-1) in
+              let i = String.index msg_s ' ' in
+              let d_ip_s = String.sub msg_s 0 i in
+              let d_prt_s = String.sub msg_s (i+1) ((String.length msg_s) - i-1) in
+              let dst = (Ipaddr.V4.of_string_exn d_ip_s) in
+              let dst_p = int_of_string d_prt_s in
 
-          | "start" ->
-            let ip = List.hd (LST.IPV4.get_ip (LST.ipv4 lst)) in
-            let _ = sendth ip iperf_rx_port in
-            C.log_s console
-              (yellow "attempting iperf connection to: %s:%d\n" 
-                (Ipaddr.V4.to_string ip) iperf_rx_port
-              )
-            >>
-            cmd_loop (n + (Cstruct.len b)) f
+              let _ = NCOM.reset_stats_counters ncom in
+              let _ = NLST.reset_stats_counters nlst in
 
-          | "stats" ->
-            C.log_s console (yellow "information requested\n")
-            >>
-            let stats_s = NCOM.get_stats_counters ncom in
-            let stats_r = NLST.get_stats_counters nlst in
-            let msg_stat = String.concat " "
-            	["rx_bytes: "; Int64.to_string stats_r.rx_bytes; "\n";
-            	 "rx_pkts: " ; Int32.to_string stats_r.rx_pkts;  "\n";
-            	 "tx_bytes: "; Int64.to_string stats_s.tx_bytes; "\n";
-            	 "tx_pkts: " ; Int32.to_string stats_s.tx_pkts;  "\n"] in
-            C.log_s console (yellow "%s\n" msg_stat) >>
-            let stats_buf = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 (String.length msg_stat) in
-            Cstruct.blit_from_string msg_stat 0 stats_buf 0 (String.length msg_stat);
-            TCOM.write f stats_buf >>
-            cmd_loop (n + (Cstruct.len b)) f 
-            
-          | "reset" ->
-            C.log_s console (yellow "Reset statistics requested\n")
-            >>
-            let _ = NCOM.reset_stats_counters ncom in
-            let _ = NLST.reset_stats_counters nlst in
-            let stats_s = NCOM.get_stats_counters ncom in
-            let stats_r = NLST.get_stats_counters nlst in
-            let msg_stat = String.concat " "
-            	["rx_bytes: "; Int64.to_string stats_r.rx_bytes; "\n";
-            	 "rx_pkts: " ; Int32.to_string stats_r.rx_pkts;  "\n";
-            	 "tx_bytes: "; Int64.to_string stats_s.tx_bytes; "\n";
-            	 "tx_pkts: " ; Int32.to_string stats_s.tx_pkts;  "\n"] in
-            C.log_s console (yellow "%s\n" msg_stat) >>
-            let stats_buf = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 (String.length msg_stat) in
-            Cstruct.blit_from_string msg_stat 0 stats_buf 0 (String.length msg_stat);
-            TCOM.write f stats_buf >>
-            cmd_loop (n + (Cstruct.len b)) f 
+              let _ = sendth dst dst_p in
+              C.log_s console
+                (yellow "attempting iperf connection to: %s:%s\n"
+                   d_ip_s d_prt_s
+                )
+              >>
+              cmd_loop (n + (Cstruct.len b)) f
 
-          | c ->
-            C.log_s console (red "uknown command - %s - read: %d bytes " c n)
-            >> cmd_loop (n + (Cstruct.len b)) f
-            
+            | "start" ->
+              let ip = List.hd (LST.IPV4.get_ip (LST.ipv4 lst)) in
+              let _ = sendth ip iperf_rx_port in
+              C.log_s console
+                (yellow "attempting iperf connection to: %s:%d\n"
+                   (Ipaddr.V4.to_string ip) iperf_rx_port
+                )
+              >>
+              cmd_loop (n + (Cstruct.len b)) f
+
+            | "stats" ->
+              C.log_s console (yellow "information requested\n")
+              >>
+              let stats_s = NCOM.get_stats_counters ncom in
+              let stats_r = NLST.get_stats_counters nlst in
+              let msg_stat =
+                String.concat " "
+                  ["rx_bytes: "; Int64.to_string stats_r.rx_bytes; "\n";
+                   "rx_pkts: " ; Int32.to_string stats_r.rx_pkts;  "\n";
+                   "tx_bytes: "; Int64.to_string stats_s.tx_bytes; "\n";
+                   "tx_pkts: " ; Int32.to_string stats_s.tx_pkts;  "\n"]
+              in
+              C.log_s console (yellow "%s\n" msg_stat) >>
+              let stats_buf =
+                Cstruct.sub
+                  (Io_page.(to_cstruct (get 1))) 0 (String.length msg_stat)
+              in
+              Cstruct.blit_from_string msg_stat 0 stats_buf 0 (String.length msg_stat);
+              TCOM.write f stats_buf >>
+              cmd_loop (n + (Cstruct.len b)) f
+
+            | "reset" ->
+              C.log_s console (yellow "Reset statistics requested\n")
+              >>
+              let _ = NCOM.reset_stats_counters ncom in
+              let _ = NLST.reset_stats_counters nlst in
+              let stats_s = NCOM.get_stats_counters ncom in
+              let stats_r = NLST.get_stats_counters nlst in
+              let msg_stat =
+                String.concat " "
+                  ["rx_bytes: "; Int64.to_string stats_r.rx_bytes; "\n";
+                   "rx_pkts: " ; Int32.to_string stats_r.rx_pkts;  "\n";
+                   "tx_bytes: "; Int64.to_string stats_s.tx_bytes; "\n";
+                   "tx_pkts: " ; Int32.to_string stats_s.tx_pkts;  "\n"]
+              in
+              C.log_s console (yellow "%s\n" msg_stat) >>
+              let stats_buf =
+                Cstruct.sub (Io_page.(to_cstruct (get 1)))
+                  0 (String.length msg_stat)
+              in
+              Cstruct.blit_from_string msg_stat 0 stats_buf 0 (String.length msg_stat);
+              TCOM.write f stats_buf >>
+              cmd_loop (n + (Cstruct.len b)) f
+
+            | c ->
+              C.log_s console (red "uknown command - %s - read: %d bytes " c n)
+              >> cmd_loop (n + (Cstruct.len b)) f
+
           )
         | `Eof -> TCOM.close f >>
-           C.log_s console
-             (red "cmd connection closed - read: %d bytes " n)
+          C.log_s console
+            (red "cmd connection closed - read: %d bytes " n)
         | `Error e -> C.log_s console (red "read: error")
       in
       fun flow ->
         let dst, dst_port = TCOM.get_dest flow in
         TCOM.write flow usage_buf >>
         C.log_s console
-          (green "new command connection from %s %d" 
-            (Ipaddr.V4.to_string dst) dst_port
+          (green "new command connection from %s %d"
+             (Ipaddr.V4.to_string dst) dst_port
           )
         >>
         C.log_s console
           (green "%s" usage_msg)
-      >>
-      cmd_loop 0 flow
+        >>
+        cmd_loop 0 flow
     );
 
 
@@ -160,31 +175,32 @@ module Main (C:CONSOLE)(NCOM: NETWORK)(NLST: NETWORK)(COM:STACKV4)(LST:STACKV4) 
     LST.listen_tcpv4 lst iperf_rx_port (
       let rec iperf_rx_loop n f =
         fun () ->
-        TLST.read f
-        >>= function
-        | `Ok b ->
-	   return() >>= iperf_rx_loop (n + (Cstruct.len b)) f
-        | `Eof -> TLST.close f >> C.log_s console (red "iperf received: %d bytes" n)
-        | `Error e -> C.log_s console (red "read: error")
+          TLST.read f
+          >>= function
+          | `Ok b ->
+            return() >>= iperf_rx_loop (n + (Cstruct.len b)) f
+          | `Eof ->
+            TLST.close f >> C.log_s console (red "iperf received: %d bytes" n)
+          | `Error e -> C.log_s console (red "read: error")
       in
       fun flow ->
         let dst, dst_port = TLST.get_dest flow in
         C.log_s console
-          (green "new iperf connection from %s %d" 
-            (Ipaddr.V4.to_string dst) dst_port
+          (green "new iperf connection from %s %d"
+             (Ipaddr.V4.to_string dst) dst_port
           )
-        >>= 
+        >>=
         iperf_rx_loop 0 flow
     );
 
     let periodic_print time =
-      while_lwt true do 
+      while_lwt true do
         OS.Time.sleep time >>
-          let ip = List.hd (COM.IPV4.get_ip (COM.ipv4 com)) in
-            C.log_s console (sprintf "IP address: @%s@\n" (Ipaddr.V4.to_string ip))
+        let ip = List.hd (COM.IPV4.get_ip (COM.ipv4 com)) in
+        C.log_s console (sprintf "IP address: @%s@\n" (Ipaddr.V4.to_string ip))
       done
     in
-    
+
     lwt _ = (COM.listen com) <&> (LST.listen lst) <&> (periodic_print 1.0) in
-      return ()
+    return ()
 end
