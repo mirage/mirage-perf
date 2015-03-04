@@ -1,2 +1,2 @@
-PKG cstruct lwt mirage-types.lwt
+PKG cstruct lwt lwt.syntax mirage-types.lwt io-page
 B _build/**
