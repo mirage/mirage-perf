@@ -1,4 +1,5 @@
-# Performance regression testing for Mirage
+Performance regression testing for Mirage
+=========================================
 
 Test environment
 ----------------
@@ -18,7 +19,7 @@ scripts/mir-perf.sh <address> <password> <library> <duration>
 
 + `address` is the IP address of the XenServer.
 + `password` is the root password for the XenServer.
-+ `library` is the name of the MirageOS library for the performance test, e.g., `tcpip` tests the @mirage/tcpip
-library.
-+ `duration` Performance regression testing continues for the duration time for the
-maximum of 200,000 packets.
++ `library` is the name of the MirageOS library for the performance test, e.g.,
+  `tcpip` tests the @mirage/tcpip library.
++ `duration` specifies when statistics should be retrieved from the server; the
+  test runs to a maximum of 200,000 packets.
