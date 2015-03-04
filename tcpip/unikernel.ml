@@ -1,5 +1,6 @@
 (*
  * Copyright (C) 2015 University of Nottingham <masoud.koleini@nottingham.ac.uk>
+ * Copyright (C) 2015 Balraj Singh <balraj.singh@cl.cam.ac.uk>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
