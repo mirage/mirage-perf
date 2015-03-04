@@ -1,6 +1,8 @@
 open Mirage
 
-let handler = foreign "Unikernel.Main" (console @-> network @-> network @-> stackv4 @-> stackv4 @-> job)
+let handler =
+  foreign "Unikernel.Main"
+    (console @-> network @-> network @-> stackv4 @-> stackv4 @-> job)
 
 let net =
   try match Sys.getenv "NET" with

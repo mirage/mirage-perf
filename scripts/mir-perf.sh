@@ -10,15 +10,15 @@ popd
 source $DIR/init.sh
 
 function on_exit {
-  set +e
-  source $DIR/cleanup.sh
+    set +e
+    source $DIR/cleanup.sh
 }
 
 trap on_exit EXIT
 
 if [ $# -lt 4 ]; then
-echo -e "${ERR} syntax: mir-perf <XenServer address> <XenServer root password> <library> <duration>"
-exit
+    echo -e "${ERR} syntax: mir-perf <address> <password> <library> <duration>"
+    exit
 fi
 
 XS=$1
@@ -32,7 +32,6 @@ pushd $DIR/../$LIBRARY
 
 eval `opam config env`
 env DHCP=true NET=direct mirage config --xen
-
 make
 
 popd
@@ -53,11 +52,12 @@ sshpass -p $PASSWORD scp $IMAGE root@$XS:/boot/guest/
 $XENSERVER "echo \$(xe vm-create name-label=$VM) > VM"
 $XENSERVER "xe vm-param-set PV-kernel=/boot/guest/$KERNEL uuid=\$(cat ./VM)"
 $XENSERVER "echo \$(xe network-list bridge=xenbr0 params=uuid --minimal) > NET"
-$XENSERVER "xe vif-create vm-uuid=\$(cat ./VM) network-uuid=\$(cat ./NET) device=0" #> /dev/null 2>&1
-$XENSERVER "xe vif-create vm-uuid=\$(cat ./VM) network-uuid=\$(cat ./NET) device=1" #> /dev/null 2>&1 # second interface
+$XENSERVER "xe vif-create vm-uuid=\$(cat ./VM) network-uuid=\$(cat ./NET) device=0"
+$XENSERVER "xe vif-create vm-uuid=\$(cat ./VM) network-uuid=\$(cat ./NET) device=1"
 $XENSERVER "xe vm-start vm=\$(cat ./VM)"
 set +e
-timeout 5s $XENSERVER "unbuffer xe console vm=\$(cat ./VM) > CONSOLE" #note: xe console continue running, stop it?
+timeout 5s $XENSERVER "unbuffer xe console vm=\$(cat ./VM) > CONSOLE"
+# NOTE: xe console continue running, stop it?
 set -e
 $XENSERVER "[[ \$(cat ./CONSOLE) =~ ^.*@(.*)@.* ]] && echo \${BASH_REMATCH[1]} | tail -1 > VM_IP"
 VMADDRESS=$($XENSERVER "cat VM_IP")
@@ -66,28 +66,24 @@ VMADDRESS=$($XENSERVER "cat VM_IP")
 exec 3<>/dev/tcp/$VMADDRESS/8080
 
 # add reset counters
-
 echo -e "start " >&3
-
 sleep $DURATION
-
 echo -e "stats " >&3
-
 while read -u 3 LINE
 do
     if [[ $LINE == *"rx_bytes"* ]]
     then
-      STATS=$LINE" - "
-      read -u 3 LINE
-      STATS=$STATS$LINE" - "
-      read -u 3 LINE
-      STATS=$STATS$LINE" - "
-      read -u 3 LINE
-      STATS=$STATS$LINE
-      break
+        STATS=$LINE" - "
+        read -u 3 LINE
+        STATS=$STATS$LINE" - "
+        read -u 3 LINE
+        STATS=$STATS$LINE" - "
+        read -u 3 LINE
+        STATS=$STATS$LINE
+        break
     fi
 done
 
 echo $STATS
 
-exec 3<&-    # close fd
+exec 3<&- # close fd
