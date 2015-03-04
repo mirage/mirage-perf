@@ -33,4 +33,3 @@ let () =
   register "stackv4" [
     handler $ default_console $ tap0 $ (netif "1") $ stack1 $ stack2;
   ]
-

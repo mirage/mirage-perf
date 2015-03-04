@@ -33,10 +33,7 @@ module Main (C:CONSOLE)(NCOM: NETWORK)(NLST: NETWORK)(COM:STACKV4)(LST:STACKV4) 
 
     let usage_buf = Cstruct.sub (Io_page.(to_cstruct (get 1))) 0 usage_mlen in
     Cstruct.blit_from_string usage_msg 0 usage_buf 0 usage_mlen;
-(*
-    let start_stat = ref (N.get_stats_counters n) in
-    let final_stat = ref (N.get_stats_counters n) in
-*)
+
     Lwt_list.iter_s (fun ip -> C.log_s console 
       (sprintf "IP address: %s\n" 
         (Ipaddr.V4.to_string ip))) (COM.IPV4.get_ip (COM.ipv4 com))

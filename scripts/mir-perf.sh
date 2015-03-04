@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -ex
 
@@ -16,15 +16,15 @@ function on_exit {
 
 trap on_exit EXIT
 
-if [ $# -lt 3 ]; then
-echo -e "${ERR} syntax: mir-perf <XenServer address> <XenServer root password> <library> <Run time>"
+if [ $# -lt 4 ]; then
+echo -e "${ERR} syntax: mir-perf <XenServer address> <XenServer root password> <library> <duration>"
 exit
 fi
 
 XS=$1
 PASSWORD=$2
 LIBRARY=$3
-TRAFTIME=$4
+DURATION=$4
 
 XENSERVER="sshpass -p $PASSWORD ssh -oStrictHostKeyChecking=no -l root $XS"
 
@@ -38,9 +38,9 @@ make
 popd
 
 # bug: XenServer returns: Ssl.Write_error(5)
-#$TMP/xe-unikernel-upload/xe-unikernel-upload \
+#xe-unikernel-upload/xe-unikernel-upload \
 #    --username=root --password=$PASSWORD --uri=https://$XENSERVER/ \
-#    --path=$TMP/mirage-skeleton/iperf_lite/mir-stackv4.xen
+#    --path=/iperf/mir-stackv4.xen
 
 $XENSERVER 'if [[ ! -d /boot/guest ]]; then mkdir /boot/guest; fi'
 
@@ -49,8 +49,6 @@ KERNEL=$(echo $IMAGE | sed -e 's/.*mir-/mir-/')
 VM=$(echo $IMAGE | sed -e 's/.*mir-//' -e 's/.xen$//')
 
 sshpass -p $PASSWORD scp $IMAGE root@$XS:/boot/guest/
-
-# hard code VM command interface - TODO: find a way of automatic detection
 
 $XENSERVER "echo \$(xe vm-create name-label=$VM) > VM"
 $XENSERVER "xe vm-param-set PV-kernel=/boot/guest/$KERNEL uuid=\$(cat ./VM)"
@@ -64,14 +62,14 @@ set -e
 $XENSERVER "[[ \$(cat ./CONSOLE) =~ ^.*@(.*)@.* ]] && echo \${BASH_REMATCH[1]} | tail -1 > VM_IP"
 VMADDRESS=$($XENSERVER "cat VM_IP")
 
-# add reset counters and start traffic generation
-
 # read stats
 exec 3<>/dev/tcp/$VMADDRESS/8080
 
+# add reset counters
+
 echo -e "start " >&3
 
-sleep $TRAFTIME
+sleep $DURATION
 
 echo -e "stats " >&3
 
@@ -92,8 +90,4 @@ done
 
 echo $STATS
 
-exec 3<&-    # close file
-
-
-
-
+exec 3<&-    # close fd
