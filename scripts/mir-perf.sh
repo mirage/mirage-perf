@@ -71,7 +71,7 @@ $XENSERVER "xe vif-create vm-uuid=\$(cat ./VM) network-uuid=\$(cat ./NET) device
 $XENSERVER "xe vm-start vm=\$(cat ./VM)"
 set +e
 timeout 5s $XENSERVER "unbuffer xe console vm=\$(cat ./VM) > CONSOLE"
-# NOTE: xe console continue running, stop it?
+# NOTE: xe console continues running, stop it?
 set -e
 $XENSERVER "[[ \$(cat ./CONSOLE) =~ ^.*@(.*)@.* ]] && echo \${BASH_REMATCH[1]} | tail -1 > VM_IP"
 VMADDRESS=$($XENSERVER "cat VM_IP")
